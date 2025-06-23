@@ -1,10 +1,13 @@
-use std::io::{Read, Write};
+mod status;
+mod request;
+mod header;
+mod response;
+
+use crate::request::parse_request_line;
+use crate::response::write_response;
+use crate::status::Status;
+use std::io::Read;
 use std::net::TcpListener;
-
-const NOT_FOUND_RESPONSE: &str = "HTTP/1.1 404 Not Found\r\n\r\n";
-
-const SUCCESS_STATUS_LINE: &str = "HTTP/1.1 200 OK\r\n";
-const CONTENT_TYPE_HEADER: &str = "Content-Type: text/plain\r\n";
 
 fn main() {
     let listener = TcpListener::bind("127.0.0.1:4221").unwrap();
@@ -20,21 +23,28 @@ fn main() {
                      Some((_, target, _)) => {
                          match target {
                              "/" => {
-                                 tcp_stream.write(format!("{}\r\n", SUCCESS_STATUS_LINE).as_bytes()).expect("Error writing 200 OK response to TCP stream.");
+                                 write_response(tcp_stream, Status::Ok, "");
                              },
+
+                             "/user-agent" => {
+                                 for line in request.split("\r\n") {
+                                     if line.to_lowercase().starts_with("user-agent") {
+                                         let user_agent = line.split_once(": ").unwrap().1.replace("\r\n", "");
+
+                                         write_response(tcp_stream, Status::Ok, &user_agent);
+                                         return
+                                     }
+                                 }
+                             },
+
                              to_echo if target.starts_with("/echo/") => {
                                  let (_, body) = to_echo.split_once("/echo/").unwrap();
-                                 
-                                 let mut response = String::with_capacity(128);
-                                 response.push_str(SUCCESS_STATUS_LINE);
-                                 response.push_str(CONTENT_TYPE_HEADER);
-                                 response.push_str(&format!("Content-Length: {}\r\n\r\n", body.len()));
-                                 response.push_str(body);
-                                 
-                                 tcp_stream.write(response.as_bytes()).unwrap();
+
+                                 write_response(tcp_stream, Status::Ok, &body)
                              },
+
                              _ => {
-                                 tcp_stream.write(NOT_FOUND_RESPONSE.as_bytes()).expect("Error writing 404 Not Found response to TCP stream.");
+                                 write_response(tcp_stream, Status::NotFound, "");
                              }
                          }
                      },
@@ -46,10 +56,4 @@ fn main() {
              }
          }
      }
-}
-
-fn parse_request_line(request: &str) -> Option<(&str, &str, &str)> {
-    let (request_line, _) = request.split_once("\r\n")?;
-    let [http_method, target, http_version] = request_line.split_whitespace().collect::<Vec<&str>>()[..] else { return None };
-    Some((http_method, target, http_version))
 }
