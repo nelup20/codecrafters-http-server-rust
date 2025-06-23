@@ -5,6 +5,8 @@ use std::fs;
 use std::io::Read;
 use std::net::TcpStream;
 
+const LINE_BREAK: &'static str = "\r\n";
+
 pub fn handle_connection(tcp_stream: &mut TcpStream, file_dir: &str) {
     let mut request_buffer = [0u8; 256];
     tcp_stream
@@ -15,11 +17,12 @@ pub fn handle_connection(tcp_stream: &mut TcpStream, file_dir: &str) {
         .expect("Error converting request buffer to UTF-8");
 
     match parse_request_line(&request) {
-        Some((_, target, _)) => match target {
+        Some((method, target, _)) => match target {
             "/" => handle_root(tcp_stream),
-            "/user-agent" => handle_user_agent(tcp_stream, request),
+            "/user-agent" => handle_user_agent(tcp_stream, &request),
             path if target.starts_with("/echo/") => handle_echo(tcp_stream, path),
-            path if target.starts_with("/files/") => handle_file(tcp_stream, path, file_dir),
+            path if target.starts_with("/files/") && method == "GET" => handle_get_file(tcp_stream, path, file_dir),
+            path if target.starts_with("/files/") && method == "POST" => handle_post_file(tcp_stream, path, file_dir, &request),
             _ => handle_not_found(tcp_stream),
         },
         None => {}
@@ -36,7 +39,7 @@ fn handle_echo(tcp_stream: &mut TcpStream, path: &str) {
     write_response(tcp_stream, Status::Ok, ContentType::TextPlain, &body);
 }
 
-fn handle_file(tcp_stream: &mut TcpStream, path: &str, file_dir: &str) {
+fn handle_get_file(tcp_stream: &mut TcpStream, path: &str, file_dir: &str) {
     let (_, file) = path.split_once("/files/").unwrap();
 
     let local_file = fs::read_dir(file_dir)
@@ -55,14 +58,27 @@ fn handle_file(tcp_stream: &mut TcpStream, path: &str, file_dir: &str) {
     }
 }
 
+fn handle_post_file(tcp_stream: &mut TcpStream, path: &str, file_dir: &str, request: &str) {
+    let (_, file_name) = path.split_once("/files/").unwrap();
+    let (metadata, body) = request.split_once("\r\n\r\n").unwrap();
+    
+    for header in metadata.split(LINE_BREAK) {
+        if header.starts_with("Content-Length") {
+            let parsed_length: usize = header.split_once(": ").unwrap().1.parse().unwrap();
+            fs::write(file_dir.to_owned() + file_name, &body[..parsed_length]).unwrap();
+            write_response(tcp_stream, Status::Created, ContentType::TextPlain, "");
+        }
+    }
+}
+
 fn handle_root(tcp_stream: &mut TcpStream) {
     write_response(tcp_stream, Status::Ok, ContentType::TextPlain, "");
 }
 
-fn handle_user_agent(tcp_stream: &mut TcpStream, request: String) {
-    for line in request.split("\r\n") {
+fn handle_user_agent(tcp_stream: &mut TcpStream, request: &str) {
+    for line in request.split(LINE_BREAK) {
         if line.to_lowercase().starts_with("user-agent") {
-            let user_agent = line.split_once(": ").unwrap().1.replace("\r\n", "");
+            let user_agent = line.split_once(": ").unwrap().1.replace(LINE_BREAK, "");
 
             write_response(tcp_stream, Status::Ok, ContentType::TextPlain, &user_agent);
             return;
@@ -71,7 +87,7 @@ fn handle_user_agent(tcp_stream: &mut TcpStream, request: String) {
 }
 
 pub fn parse_request_line(request: &str) -> Option<(&str, &str, &str)> {
-    let (request_line, _) = request.split_once("\r\n")?;
+    let (request_line, _) = request.split_once(LINE_BREAK)?;
     let [http_method, target, http_version] =
         request_line.split_whitespace().collect::<Vec<&str>>()[..]
     else {
