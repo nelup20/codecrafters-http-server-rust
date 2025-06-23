@@ -1,8 +1,10 @@
 use std::io::{Read, Write};
 use std::net::TcpListener;
 
-const SUCCESS_RESPONSE: &str = "HTTP/1.1 200 OK\r\n\r\n";
 const NOT_FOUND_RESPONSE: &str = "HTTP/1.1 404 Not Found\r\n\r\n";
+
+const SUCCESS_STATUS_LINE: &str = "HTTP/1.1 200 OK\r\n";
+const CONTENT_TYPE_HEADER: &str = "Content-Type: text/plain\r\n";
 
 fn main() {
     let listener = TcpListener::bind("127.0.0.1:4221").unwrap();
@@ -16,11 +18,25 @@ fn main() {
 
                  match parse_request_line(&request) {
                      Some((_, target, _)) => {
-                        if target == "/" {
-                            tcp_stream.write(SUCCESS_RESPONSE.as_bytes()).expect("Error writing 200 OK response to TCP stream.");
-                        } else {
-                            tcp_stream.write(NOT_FOUND_RESPONSE.as_bytes()).expect("Error writing 404 Not Found response to TCP stream.");
-                        }
+                         match target {
+                             "/" => {
+                                 tcp_stream.write(format!("{}\r\n", SUCCESS_STATUS_LINE).as_bytes()).expect("Error writing 200 OK response to TCP stream.");
+                             },
+                             to_echo if target.starts_with("/echo/") => {
+                                 let (_, body) = to_echo.split_once("/echo/").unwrap();
+                                 
+                                 let mut response = String::with_capacity(128);
+                                 response.push_str(SUCCESS_STATUS_LINE);
+                                 response.push_str(CONTENT_TYPE_HEADER);
+                                 response.push_str(&format!("Content-Length: {}\r\n\r\n", body.len()));
+                                 response.push_str(body);
+                                 
+                                 tcp_stream.write(response.as_bytes()).unwrap();
+                             },
+                             _ => {
+                                 tcp_stream.write(NOT_FOUND_RESPONSE.as_bytes()).expect("Error writing 404 Not Found response to TCP stream.");
+                             }
+                         }
                      },
                      None => {}
                  }
