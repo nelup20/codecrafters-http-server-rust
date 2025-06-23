@@ -1,0 +1,12 @@
+
+pub enum CompressionScheme {
+    Gzip
+}
+
+impl CompressionScheme {
+    pub fn as_string(&self) -> &str {
+        match self {
+            CompressionScheme::Gzip => "gzip",
+        }
+    }
+}

@@ -4,6 +4,7 @@ use crate::status::Status;
 use std::fs;
 use std::io::Read;
 use std::net::TcpStream;
+use crate::compression_scheme::CompressionScheme;
 
 const LINE_BREAK: &'static str = "\r\n";
 
@@ -20,7 +21,7 @@ pub fn handle_connection(tcp_stream: &mut TcpStream, file_dir: &str) {
         Some((method, target, _)) => match target {
             "/" => handle_root(tcp_stream),
             "/user-agent" => handle_user_agent(tcp_stream, &request),
-            path if target.starts_with("/echo/") => handle_echo(tcp_stream, path),
+            path if target.starts_with("/echo/") => handle_echo(tcp_stream, path, &request),
             path if target.starts_with("/files/") && method == "GET" => handle_get_file(tcp_stream, path, file_dir),
             path if target.starts_with("/files/") && method == "POST" => handle_post_file(tcp_stream, path, file_dir, &request),
             _ => handle_not_found(tcp_stream),
@@ -30,13 +31,23 @@ pub fn handle_connection(tcp_stream: &mut TcpStream, file_dir: &str) {
 }
 
 fn handle_not_found(tcp_stream: &mut TcpStream) {
-    write_response(tcp_stream, Status::NotFound, ContentType::TextPlain, "");
+    write_response(tcp_stream, Status::NotFound, ContentType::TextPlain, None,"");
 }
 
-fn handle_echo(tcp_stream: &mut TcpStream, path: &str) {
+fn handle_echo(tcp_stream: &mut TcpStream, path: &str, request: &str) {
     let (_, body) = path.split_once("/echo/").unwrap();
 
-    write_response(tcp_stream, Status::Ok, ContentType::TextPlain, &body);
+    for header in request.split("\r\n") {
+        if header.starts_with("Accept-Encoding") {
+            let compression_scheme = header.split_once(": ").unwrap().1;
+            if compression_scheme == "gzip" {
+                write_response(tcp_stream, Status::Ok, ContentType::TextPlain, Some(CompressionScheme::Gzip), &body);
+                return
+            }
+        }
+    }
+
+    write_response(tcp_stream, Status::Ok, ContentType::TextPlain, None, &body);
 }
 
 fn handle_get_file(tcp_stream: &mut TcpStream, path: &str, file_dir: &str) {
@@ -52,6 +63,7 @@ fn handle_get_file(tcp_stream: &mut TcpStream, path: &str, file_dir: &str) {
             tcp_stream,
             Status::Ok,
             ContentType::OctetStream,
+            None,
             &fs::read_to_string(found_file.path()).unwrap(),
         ),
         None => handle_not_found(tcp_stream),
@@ -66,13 +78,13 @@ fn handle_post_file(tcp_stream: &mut TcpStream, path: &str, file_dir: &str, requ
         if header.starts_with("Content-Length") {
             let parsed_length: usize = header.split_once(": ").unwrap().1.parse().unwrap();
             fs::write(file_dir.to_owned() + file_name, &body[..parsed_length]).unwrap();
-            write_response(tcp_stream, Status::Created, ContentType::TextPlain, "");
+            write_response(tcp_stream, Status::Created, ContentType::TextPlain, None, "");
         }
     }
 }
 
 fn handle_root(tcp_stream: &mut TcpStream) {
-    write_response(tcp_stream, Status::Ok, ContentType::TextPlain, "");
+    write_response(tcp_stream, Status::Ok, ContentType::TextPlain, None, "");
 }
 
 fn handle_user_agent(tcp_stream: &mut TcpStream, request: &str) {
@@ -80,7 +92,7 @@ fn handle_user_agent(tcp_stream: &mut TcpStream, request: &str) {
         if line.to_lowercase().starts_with("user-agent") {
             let user_agent = line.split_once(": ").unwrap().1.replace(LINE_BREAK, "");
 
-            write_response(tcp_stream, Status::Ok, ContentType::TextPlain, &user_agent);
+            write_response(tcp_stream, Status::Ok, ContentType::TextPlain, None, &user_agent);
             return;
         }
     }
