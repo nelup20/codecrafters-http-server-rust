@@ -1,7 +1,10 @@
-#[allow(unused_imports)]
+use std::io::Write;
 use std::net::TcpListener;
 
+const RESPONSE: &str = "HTTP/1.1 200 OK\r\n\r\n";
+
 fn main() {
+
     // You can use print statements as follows for debugging, they'll be visible when running tests.
     println!("Logs from your program will appear here!");
 
@@ -11,8 +14,8 @@ fn main() {
     //
     for stream in listener.incoming() {
          match stream {
-             Ok(_stream) => {
-                 println!("accepted new connection");
+             Ok(mut tcp_stream) => {
+                 tcp_stream.write(RESPONSE.as_bytes()).expect("Error writing 200 OK response to TCP stream.");
              }
              Err(e) => {
                  println!("error: {}", e);
