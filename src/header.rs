@@ -1,7 +1,7 @@
-use crate::header::Header::{ContentLength, ContentType, UserAgent};
+use crate::content_type::ContentType;
 
 pub enum Header {
-    ContentType,
+    ContentType(ContentType),
     ContentLength(usize),
     UserAgent(String),
 }
@@ -9,9 +9,9 @@ pub enum Header {
 impl Header {
     pub fn as_string(&self) -> String {
         match self {
-            ContentType => String::from("Content-Type: text/plain\r\n"),
-            ContentLength(val) => format!("Content-Length: {}\r\n", val),
-            UserAgent(val) => format!("User-Agent: {}\r\n", val),
+            Header::ContentType(val) => format!("Content-Type: {}\r\n", val.as_string()),
+            Header::ContentLength(val) => format!("Content-Length: {}\r\n", val),
+            Header::UserAgent(val) => format!("User-Agent: {}\r\n", val),
         }
     }
 }
