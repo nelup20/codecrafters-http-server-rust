@@ -39,10 +39,15 @@ fn handle_echo(tcp_stream: &mut TcpStream, path: &str, request: &str) {
 
     for header in request.split("\r\n") {
         if header.starts_with("Accept-Encoding") {
-            let compression_scheme = header.split_once(": ").unwrap().1;
-            if compression_scheme == "gzip" {
-                write_response(tcp_stream, Status::Ok, ContentType::TextPlain, Some(CompressionScheme::Gzip), &body);
-                return
+            let compression_schemes = header.split_once(": ").unwrap().1;
+            
+            let supported_scheme = compression_schemes.split(",").find(|&scheme| scheme.trim() == "gzip");
+            match supported_scheme {
+                None => {}
+                Some(_) => {
+                    write_response(tcp_stream, Status::Ok, ContentType::TextPlain, Some(CompressionScheme::Gzip), &body);
+                    return
+                }
             }
         }
     }
@@ -98,7 +103,7 @@ fn handle_user_agent(tcp_stream: &mut TcpStream, request: &str) {
     }
 }
 
-pub fn parse_request_line(request: &str) -> Option<(&str, &str, &str)> {
+fn parse_request_line(request: &str) -> Option<(&str, &str, &str)> {
     let (request_line, _) = request.split_once(LINE_BREAK)?;
     let [http_method, target, http_version] =
         request_line.split_whitespace().collect::<Vec<&str>>()[..]
