@@ -6,19 +6,19 @@ use crate::content_type::ContentType;
 use crate::header::Header;
 
 // Would be cleaner to work with response structs and more Options 
-pub fn write_response(tcp_stream: &mut TcpStream, status: Status, content_type: ContentType, content_encoding: Option<CompressionScheme>, body: &str) {
-    let mut response = String::with_capacity(128);
-    response.push_str(status.as_string());
-    response.push_str(&Header::ContentType(content_type).as_string());
-    response.push_str(&Header::ContentLength(body.len()).as_string());
+pub fn write_response(tcp_stream: &mut TcpStream, status: Status, content_type: ContentType, content_encoding: Option<CompressionScheme>, body: &[u8]) {
+    let mut metadata = String::with_capacity(128);
+    metadata.push_str(status.as_string());
+    metadata.push_str(&Header::ContentType(content_type).as_string());
+    metadata.push_str(&Header::ContentLength(body.len()).as_string());
     
     match content_encoding {
         None => {}
-        Some(scheme) => response.push_str(&Header::ContentEncoding(scheme).as_string())
+        Some(scheme) => metadata.push_str(&Header::ContentEncoding(scheme).as_string())
     }
     
-    response.push_str("\r\n");
-    response.push_str(body);
+    metadata.push_str("\r\n");
 
-    tcp_stream.write(response.as_bytes()).unwrap();
+    tcp_stream.write(metadata.as_bytes()).unwrap();
+    tcp_stream.write(body).unwrap();
 }
