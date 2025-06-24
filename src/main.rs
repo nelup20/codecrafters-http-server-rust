@@ -11,6 +11,8 @@ use std::net::TcpListener;
 use std::{env, thread};
 use std::sync::{Arc, Mutex};
 
+// TODO (refactor): implement thread pool instead of spawning a thread for each new request
+// + route handlers should work with Request/Response structs 
 fn main() {
     let mut args = env::args();
     let mut dir_arg = String::new();
