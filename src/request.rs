@@ -1,14 +1,12 @@
-use crate::compression_scheme::CompressionScheme;
-use crate::content_type::ContentType;
-use crate::response::write_response;
-use crate::status::Status;
-use flate2::write::GzEncoder;
-use flate2::Compression;
-use std::fs;
-use std::io::{Read, Write};
+use crate::routes::echo::handle_get_echo;
+use crate::routes::file::{handle_get_file, handle_post_file};
+use crate::routes::not_found::handle_not_found;
+use crate::routes::root::handle_get_root;
+use crate::routes::user_agent::handle_get_user_agent;
+use std::io::Read;
 use std::net::TcpStream;
 
-const LINE_BREAK: &'static str = "\r\n";
+pub const LINE_BREAK: &'static str = "\r\n";
 
 pub fn handle_connection(tcp_stream: &mut TcpStream, file_dir: &str) {
     let mut request_buffer = [0u8; 256];
@@ -21,129 +19,20 @@ pub fn handle_connection(tcp_stream: &mut TcpStream, file_dir: &str) {
 
     match parse_request_line(&request) {
         Some((method, target, _)) => match target {
-            "/" => handle_root(tcp_stream),
-            "/user-agent" => handle_user_agent(tcp_stream, &request),
-            path if target.starts_with("/echo/") => handle_echo(tcp_stream, path, &request),
-
-            path if target.starts_with("/files/") && method == "GET" => {
-                handle_get_file(tcp_stream, path, file_dir)
+            "/" => handle_get_root(tcp_stream, &request),
+            "/user-agent" => handle_get_user_agent(tcp_stream, &request),
+            request_path if target.starts_with("/echo/") => handle_get_echo(tcp_stream, &request, &request_path),
+            request_path if target.starts_with("/files/") => {
+                match method {
+                    "GET" => handle_get_file(tcp_stream, &request, &request_path, file_dir),
+                    "POST" => handle_post_file(tcp_stream, &request, &request_path, file_dir),
+                    _ => {}
+                }
+                
             }
-
-            path if target.starts_with("/files/") && method == "POST" => {
-                handle_post_file(tcp_stream, path, file_dir, &request)
-            }
-
-            _ => handle_not_found(tcp_stream),
+            _ => handle_not_found(tcp_stream, &request),
         },
         None => {}
-    }
-}
-
-fn handle_not_found(tcp_stream: &mut TcpStream) {
-    write_response(
-        tcp_stream,
-        Status::NotFound,
-        ContentType::TextPlain,
-        None,
-        &[],
-    );
-}
-
-fn handle_echo(tcp_stream: &mut TcpStream, path: &str, request: &str) {
-    let (_, body) = path.split_once("/echo/").unwrap();
-
-    for header in request.split("\r\n") {
-        if header.starts_with("Accept-Encoding") {
-            let compression_schemes = header.split_once(": ").unwrap().1;
-
-            let supported_scheme = compression_schemes
-                .split(",")
-                .find(|&scheme| scheme.trim() == "gzip");
-            match supported_scheme {
-                None => {}
-                Some(_) => {
-                    let mut encoder = GzEncoder::new(Vec::new(), Compression::default());
-                    encoder.write_all(body.as_bytes()).unwrap();
-
-                    write_response(
-                        tcp_stream,
-                        Status::Ok,
-                        ContentType::TextPlain,
-                        Some(CompressionScheme::Gzip),
-                        &encoder.finish().unwrap(),
-                    );
-                    return;
-                }
-            }
-        }
-    }
-
-    write_response(
-        tcp_stream,
-        Status::Ok,
-        ContentType::TextPlain,
-        None,
-        body.as_bytes(),
-    );
-}
-
-fn handle_get_file(tcp_stream: &mut TcpStream, path: &str, file_dir: &str) {
-    let (_, file) = path.split_once("/files/").unwrap();
-
-    let local_file = fs::read_dir(file_dir)
-        .unwrap()
-        .map(|entry| entry.unwrap())
-        .find(|entry| entry.file_name() == file && entry.metadata().unwrap().is_file());
-
-    match local_file {
-        Some(found_file) => write_response(
-            tcp_stream,
-            Status::Ok,
-            ContentType::OctetStream,
-            None,
-            &fs::read_to_string(found_file.path()).unwrap().as_bytes(),
-        ),
-        None => handle_not_found(tcp_stream),
-    }
-}
-
-fn handle_post_file(tcp_stream: &mut TcpStream, path: &str, file_dir: &str, request: &str) {
-    let (_, file_name) = path.split_once("/files/").unwrap();
-    let (metadata, body) = request.split_once("\r\n\r\n").unwrap();
-
-    for header in metadata.split(LINE_BREAK) {
-        if header.starts_with("Content-Length") {
-            let parsed_length: usize = header.split_once(": ").unwrap().1.parse().unwrap();
-            fs::write(file_dir.to_owned() + file_name, &body[..parsed_length]).unwrap();
-            write_response(
-                tcp_stream,
-                Status::Created,
-                ContentType::TextPlain,
-                None,
-                &[],
-            );
-        }
-    }
-}
-
-fn handle_root(tcp_stream: &mut TcpStream) {
-    write_response(tcp_stream, Status::Ok, ContentType::TextPlain, None, &[]);
-}
-
-fn handle_user_agent(tcp_stream: &mut TcpStream, request: &str) {
-    for line in request.split(LINE_BREAK) {
-        if line.to_lowercase().starts_with("user-agent") {
-            let user_agent = line.split_once(": ").unwrap().1.replace(LINE_BREAK, "");
-
-            write_response(
-                tcp_stream,
-                Status::Ok,
-                ContentType::TextPlain,
-                None,
-                user_agent.as_bytes(),
-            );
-            return;
-        }
     }
 }
 
@@ -155,4 +44,9 @@ fn parse_request_line(request: &str) -> Option<(&str, &str, &str)> {
         return None;
     };
     Some((http_method, target, http_version))
+}
+
+#[inline(always)]
+pub fn should_close_connection(request: &str) -> bool {
+    request.contains("Connection: close")
 }

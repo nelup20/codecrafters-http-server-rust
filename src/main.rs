@@ -4,6 +4,7 @@ mod header;
 mod response;
 mod content_type;
 mod compression_scheme;
+mod routes;
 
 use crate::request::handle_connection;
 use std::net::TcpListener;
