@@ -9,14 +9,14 @@ pub enum Header {
 }
 
 impl Header {
-    pub fn as_string(&self) -> String {
+    pub fn as_str(&self) -> &str {
         match self {
-            Header::AcceptEncoding => String::from("Accept-Encoding"),
-            Header::Connection => String::from("Connection"),
-            Header::ContentType => String::from("Content-Type"),
-            Header::ContentEncoding => String::from("Content-Encoding"),
-            Header::ContentLength => String::from("Content-Length"),
-            Header::UserAgent => String::from("User-Agent"),
+            Header::AcceptEncoding => "Accept-Encoding",
+            Header::Connection => "Connection",
+            Header::ContentType => "Content-Type",
+            Header::ContentEncoding => "Content-Encoding",
+            Header::ContentLength => "Content-Length",
+            Header::UserAgent => "User-Agent",
         }
     }
 }

@@ -7,7 +7,7 @@ use std::net::{Shutdown, TcpStream};
 
 pub struct Response<'a> {
     pub status: HttpStatus,
-    pub headers: HashMap<String, String>,
+    pub headers: HashMap<&'a str, &'a str>,
     pub body: &'a [u8],
     pub should_close_connection: bool,
 }
@@ -20,8 +20,7 @@ impl<'a> Response<'a> {
         should_close_connection: bool,
     ) -> Response<'a> {
         let mut headers = HashMap::new();
-        headers.insert(Header::ContentType.as_string(), content_type.as_string());
-        headers.insert(Header::ContentLength.as_string(), body.len().to_string());
+        headers.insert(Header::ContentType.as_str(), content_type.as_str());
 
         Response {
             status,
@@ -39,12 +38,20 @@ impl<'a> Response<'a> {
             metadata.push_str(&format!("{header_name}: {header_value}\r\n"))
         }
 
+        if !self.headers.contains_key(&Header::ContentLength.as_str()) {
+            metadata.push_str(&format!(
+                "{}: {}\r\n",
+                Header::ContentLength.as_str(),
+                self.body.len()
+            ));
+        }
+        
         if self.should_close_connection
-            && !self.headers.contains_key(&Header::Connection.as_string())
+            && !self.headers.contains_key(&Header::Connection.as_str())
         {
             metadata.push_str(&format!(
                 "{}: {}\r\n",
-                Header::Connection.as_string(),
+                Header::Connection.as_str(),
                 String::from("close")
             ));
         }

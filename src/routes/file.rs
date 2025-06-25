@@ -36,7 +36,7 @@ pub fn handle_get_file(tcp_stream: &mut TcpStream, request: &Request, file_dir: 
 pub fn handle_post_file(tcp_stream: &mut TcpStream, request: &Request, file_dir: &str) {
     let (_, file_name) = request.path.split_once("/files/").unwrap();
 
-    if let Some(length) = request.headers.get(&Header::ContentLength.as_string()) {
+    if let Some(length) = request.headers.get(Header::ContentLength.as_str()) {
         let parsed_length: usize = length.parse().unwrap();
         fs::write(
             file_dir.to_owned() + file_name,

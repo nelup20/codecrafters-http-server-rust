@@ -4,9 +4,9 @@ pub enum CompressionScheme {
 }
 
 impl CompressionScheme {
-    pub fn as_string(&self) -> String {
+    pub fn as_str(&self) -> &str {
         match self {
-            CompressionScheme::Gzip => String::from("gzip"),
+            CompressionScheme::Gzip => "gzip",
         }
     }
 }

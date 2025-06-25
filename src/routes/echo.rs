@@ -12,7 +12,7 @@ use crate::http::http_status::HttpStatus;
 pub fn handle_get_echo(tcp_stream: &mut TcpStream, request: &Request) {
     let (_, body) = request.path.split_once("/echo/").unwrap();
 
-    if let Some(compression_schemes) = request.headers.get(&Header::AcceptEncoding.as_string()) {
+    if let Some(compression_schemes) = request.headers.get(Header::AcceptEncoding.as_str()) {
         let supported_scheme = compression_schemes
             .split(",")
             .find(|&scheme| scheme.trim() == "gzip");
@@ -32,8 +32,8 @@ pub fn handle_get_echo(tcp_stream: &mut TcpStream, request: &Request) {
                 );
 
                 response.headers.insert(
-                    Header::ContentEncoding.as_string(),
-                    CompressionScheme::Gzip.as_string(),
+                    Header::ContentEncoding.as_str(),
+                    CompressionScheme::Gzip.as_str(),
                 );
 
                 response.write(tcp_stream);

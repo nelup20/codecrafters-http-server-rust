@@ -5,10 +5,10 @@ pub enum ContentType {
 }
 
 impl ContentType {
-    pub fn as_string(&self) -> String {
+    pub fn as_str(&self) -> &str {
         match self {
-            ContentType::TextPlain => String::from("text/plain"),
-            ContentType::OctetStream => String::from("application/octet-stream")
+            ContentType::TextPlain => "text/plain",
+            ContentType::OctetStream => "application/octet-stream"
         }
     }
 }

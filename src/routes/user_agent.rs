@@ -6,7 +6,7 @@ use crate::http::header::Header;
 use crate::http::http_status::HttpStatus;
 
 pub fn handle_get_user_agent(tcp_stream: &mut TcpStream, request: &Request) {
-    if let Some(user_agent) = request.headers.get(&Header::UserAgent.as_string()) {
+    if let Some(user_agent) = request.headers.get(Header::UserAgent.as_str()) {
         let response = Response::new(
             HttpStatus::Ok,
             &ContentType::TextPlain,
