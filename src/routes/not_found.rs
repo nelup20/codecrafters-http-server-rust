@@ -1,16 +1,16 @@
+use crate::http::request::Request;
+use crate::http::response::Response;
 use std::net::TcpStream;
-use crate::content_type::ContentType;
-use crate::request::should_close_connection;
-use crate::response::write_response;
-use crate::status::Status;
+use crate::http::content_type::ContentType::TextPlain;
+use crate::http::http_status::HttpStatus;
 
-pub fn handle_not_found(tcp_stream: &mut TcpStream, request: &str) {
-    write_response(
-        tcp_stream,
-        Status::NotFound,
-        ContentType::TextPlain,
-        None,
+pub fn handle_not_found(tcp_stream: &mut TcpStream, request: &Request) {
+    let response = Response::new(
+        HttpStatus::NotFound,
+        &TextPlain,
         &[],
-        should_close_connection(request),
+        request.should_close_connection,
     );
+    
+    response.write(tcp_stream);
 }

@@ -1,13 +1,14 @@
+use crate::http::request::Request;
+use crate::http::response::Response;
+use crate::routes::not_found::handle_not_found;
 use std::fs;
 use std::net::TcpStream;
-use crate::content_type::ContentType;
-use crate::request::{should_close_connection, LINE_BREAK};
-use crate::response::write_response;
-use crate::routes::not_found::handle_not_found;
-use crate::status::Status;
+use crate::http::content_type::ContentType;
+use crate::http::header::Header;
+use crate::http::http_status::HttpStatus;
 
-pub fn handle_get_file(tcp_stream: &mut TcpStream, request: &str, request_path: &str, file_dir: &str) {
-    let (_, file) = request_path.split_once("/files/").unwrap();
+pub fn handle_get_file(tcp_stream: &mut TcpStream, request: &Request, file_dir: &str) {
+    let (_, file) = request.path.split_once("/files/").unwrap();
 
     let local_file = fs::read_dir(file_dir)
         .unwrap()
@@ -15,34 +16,41 @@ pub fn handle_get_file(tcp_stream: &mut TcpStream, request: &str, request_path: 
         .find(|entry| entry.file_name() == file && entry.metadata().unwrap().is_file());
 
     match local_file {
-        Some(found_file) => write_response(
-            tcp_stream,
-            Status::Ok,
-            ContentType::OctetStream,
-            None,
-            &fs::read_to_string(found_file.path()).unwrap().as_bytes(),
-            should_close_connection(request),
-        ),
+        Some(found_file) => {
+            let file_contents = fs::read_to_string(found_file.path()).unwrap();
+            let response_body = &file_contents.as_bytes();
+
+            let response = Response::new(
+                HttpStatus::Ok,
+                &ContentType::OctetStream,
+                response_body,
+                request.should_close_connection,
+            );
+
+            response.write(tcp_stream);
+        }
         None => handle_not_found(tcp_stream, request),
     }
 }
 
-pub fn handle_post_file(tcp_stream: &mut TcpStream, request: &str, request_path: &str, file_dir: &str) {
-    let (_, file_name) = request_path.split_once("/files/").unwrap();
-    let (metadata, body) = request.split_once("\r\n\r\n").unwrap();
+pub fn handle_post_file(tcp_stream: &mut TcpStream, request: &Request, file_dir: &str) {
+    let (_, file_name) = request.path.split_once("/files/").unwrap();
 
-    for header in metadata.split(LINE_BREAK) {
-        if header.starts_with("Content-Length") {
-            let parsed_length: usize = header.split_once(": ").unwrap().1.parse().unwrap();
-            fs::write(file_dir.to_owned() + file_name, &body[..parsed_length]).unwrap();
-            write_response(
-                tcp_stream,
-                Status::Created,
-                ContentType::TextPlain,
-                None,
-                &[],
-                should_close_connection(request),
-            );
-        }
+    if let Some(length) = request.headers.get(&Header::ContentLength.as_string()) {
+        let parsed_length: usize = length.parse().unwrap();
+        fs::write(
+            file_dir.to_owned() + file_name,
+            &request.body[..parsed_length],
+        )
+        .unwrap();
+
+        let response = Response::new(
+            HttpStatus::Created,
+            &ContentType::TextPlain,
+            &[],
+            request.should_close_connection,
+        );
+
+        response.write(tcp_stream);
     }
 }

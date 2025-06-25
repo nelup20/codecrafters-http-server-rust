@@ -1,18 +1,13 @@
-mod status;
-mod request;
-mod header;
-mod response;
-mod content_type;
-mod compression_scheme;
 mod routes;
+mod http;
+mod connection;
 
-use crate::request::handle_connection;
 use std::net::TcpListener;
 use std::{env, thread};
 use std::sync::{Arc, Mutex};
+use crate::connection::handle_connection;
 
-// TODO (refactor): implement thread pool instead of spawning a thread for each new request
-// + route handlers should work with Request/Response structs 
+// TODO: implement thread pool instead of spawning a thread for each new request
 fn main() {
     let mut args = env::args();
     let mut dir_arg = String::new();

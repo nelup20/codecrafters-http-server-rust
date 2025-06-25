@@ -1,49 +1,53 @@
+use crate::http::request::Request;
+use crate::http::response::Response;
+use flate2::write::GzEncoder;
+use flate2::Compression;
 use std::io::Write;
 use std::net::TcpStream;
-use flate2::Compression;
-use flate2::write::GzEncoder;
-use crate::compression_scheme::CompressionScheme;
-use crate::content_type::ContentType;
-use crate::request::should_close_connection;
-use crate::response::write_response;
-use crate::status::Status;
+use crate::http::compression_scheme::CompressionScheme;
+use crate::http::content_type::ContentType::TextPlain;
+use crate::http::header::Header;
+use crate::http::http_status::HttpStatus;
 
-pub fn handle_get_echo(tcp_stream: &mut TcpStream, request: &str, request_path: &str) {
-    let (_, body) = request_path.split_once("/echo/").unwrap();
+pub fn handle_get_echo(tcp_stream: &mut TcpStream, request: &Request) {
+    let (_, body) = request.path.split_once("/echo/").unwrap();
 
-    for header in request.split("\r\n") {
-        if header.starts_with("Accept-Encoding") {
-            let compression_schemes = header.split_once(": ").unwrap().1;
+    if let Some(compression_schemes) = request.headers.get(&Header::AcceptEncoding.as_string()) {
+        let supported_scheme = compression_schemes
+            .split(",")
+            .find(|&scheme| scheme.trim() == "gzip");
 
-            let supported_scheme = compression_schemes
-                .split(",")
-                .find(|&scheme| scheme.trim() == "gzip");
-            match supported_scheme {
-                None => {}
-                Some(_) => {
-                    let mut encoder = GzEncoder::new(Vec::new(), Compression::default());
-                    encoder.write_all(body.as_bytes()).unwrap();
+        match supported_scheme {
+            None => {}
+            Some(_) => {
+                let mut encoder = GzEncoder::new(Vec::new(), Compression::default());
+                encoder.write_all(body.as_bytes()).unwrap();
+                let compressed_body = &encoder.finish().unwrap();
 
-                    write_response(
-                        tcp_stream,
-                        Status::Ok,
-                        ContentType::TextPlain,
-                        Some(CompressionScheme::Gzip),
-                        &encoder.finish().unwrap(),
-                        request.contains("Connection: close"),
-                    );
-                    return;
-                }
+                let mut response = Response::new(
+                    HttpStatus::Ok,
+                    &TextPlain,
+                    compressed_body,
+                    request.should_close_connection,
+                );
+
+                response.headers.insert(
+                    Header::ContentEncoding.as_string(),
+                    CompressionScheme::Gzip.as_string(),
+                );
+
+                response.write(tcp_stream);
+                return;
             }
         }
     }
 
-    write_response(
-        tcp_stream,
-        Status::Ok,
-        ContentType::TextPlain,
-        None,
+    let response = Response::new(
+        HttpStatus::Ok,
+        &TextPlain,
         body.as_bytes(),
-        should_close_connection(request),
+        request.should_close_connection,
     );
+
+    response.write(tcp_stream);
 }
