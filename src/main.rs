@@ -1,48 +1,32 @@
-mod routes;
-mod http;
 mod connection;
+mod http;
+mod routes;
+mod server;
 
-use std::net::TcpListener;
-use std::{env, thread};
+use crate::server::{spawn_thread_pool, start_server};
+use std::collections::VecDeque;
+use std::env;
+use std::net::TcpStream;
 use std::sync::{Arc, Mutex};
-use crate::connection::handle_connection;
 
-// TODO: implement thread pool instead of spawning a thread for each new request
 fn main() {
+    let file_dir = parse_file_dir_from_args();
+    let tcp_connections = Arc::new(Mutex::new(VecDeque::<Box<TcpStream>>::new()));
+
+    spawn_thread_pool(&file_dir, &tcp_connections);
+    start_server(&tcp_connections);
+}
+
+fn parse_file_dir_from_args() -> &'static str {
     let mut args = env::args();
     let mut dir_arg = String::new();
 
     for arg in args.by_ref() {
         if arg == "--directory" {
             dir_arg = args.next().unwrap();
-            break
+            break;
         }
     }
 
-    let base_dir = Arc::new(dir_arg);
-
-    let listener = TcpListener::bind("127.0.0.1:4221").unwrap();
-    for stream in listener.incoming() {
-         match stream {
-             Ok(tcp_stream) => {
-                 let shared_file_dir = Arc::clone(&base_dir);
-                 
-                 thread::spawn(move || {
-                     let shared_connection = Arc::new(Mutex::new(tcp_stream));
-                     
-                     loop {
-                         let file_dir = Arc::clone(&shared_file_dir);
-                         let connection = Arc::clone(&shared_connection);
-
-                         thread::spawn(move || {
-                             handle_connection(&mut connection.lock().unwrap(), &file_dir);
-                         });
-                     } 
-                 });
-             }
-             Err(e) => {
-                 println!("error: {}", e);
-             }
-         }
-     }
+    dir_arg.leak()
 }
