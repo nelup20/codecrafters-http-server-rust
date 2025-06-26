@@ -7,11 +7,14 @@ use crate::server::{spawn_thread_pool, start_server};
 use std::collections::VecDeque;
 use std::env;
 use std::net::TcpStream;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Condvar, Mutex};
 
 fn main() {
     let file_dir = parse_file_dir_from_args();
-    let tcp_connections = Arc::new(Mutex::new(VecDeque::<Box<TcpStream>>::new()));
+    let tcp_connections = Arc::new((
+        Mutex::new(VecDeque::<Box<TcpStream>>::new()),
+        Condvar::new(),
+    ));
 
     spawn_thread_pool(&file_dir, &tcp_connections);
     start_server(&tcp_connections);

@@ -1,14 +1,16 @@
 use crate::http::compression_scheme::CompressionScheme;
 use std::collections::HashMap;
+use crate::http::header::Header;
 
 pub const LINE_BREAK: &'static str = "\r\n";
 pub const BODY_SEPARATOR: &'static str = "\r\n\r\n";
 
+// Should use enums for method, protocol and header keys, but I'm done refactoring this challenge.
 pub struct Request<'a> {
     pub method: &'a str,
     pub path: &'a str,
     pub protocol: &'a str,
-    pub headers: HashMap<String, String>,
+    pub headers: HashMap<&'a str, &'a str>,
     pub compression_scheme: Option<CompressionScheme>,
     pub body: &'a [u8],
     pub should_close_connection: bool,
@@ -26,14 +28,14 @@ impl<'a> Request<'a> {
         let mut headers = HashMap::new();
         for header in header_line.split(LINE_BREAK) {
             let (header_name, header_value) = header.split_once(": ").unwrap();
-            headers.insert(String::from(header_name), String::from(header_value));
+            headers.insert(header_name, header_value);
         }
 
         let mut compression_scheme = None;
-        if let Some(schemes) = headers.get("Accept-Encoding") {
+        if let Some(schemes) = headers.get(Header::AcceptEncoding.as_str()) {
             if schemes
                 .split(",")
-                .find(|&scheme| scheme.trim() == "gzip")
+                .find(|&scheme| scheme.trim() == CompressionScheme::Gzip.as_str())
                 .is_some()
             {
                 compression_scheme = Some(CompressionScheme::Gzip);
@@ -41,7 +43,7 @@ impl<'a> Request<'a> {
         }
 
         let mut should_close_connection = false;
-        if let Some(connection_header_value) = headers.get("Connection") {
+        if let Some(&connection_header_value) = headers.get(Header::Connection.as_str()) {
             if connection_header_value == "close" {
                 should_close_connection = true;
             }

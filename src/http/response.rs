@@ -32,7 +32,7 @@ impl<'a> Response<'a> {
 
     pub fn write(&self, tcp_stream: &mut TcpStream) {
         let mut metadata = String::with_capacity(128);
-        metadata.push_str(self.status.as_string());
+        metadata.push_str(self.status.as_str());
 
         for (header_name, header_value) in &self.headers {
             metadata.push_str(&format!("{header_name}: {header_value}\r\n"))

@@ -7,7 +7,7 @@ pub enum HttpStatus {
 }
 
 impl HttpStatus {
-    pub fn as_string(&self) -> &str {
+    pub fn as_str(&self) -> &str {
         match self {
             HttpStatus::Ok => "HTTP/1.1 200 OK\r\n",
             HttpStatus::Created => "HTTP/1.1 201 Created\r\n",
