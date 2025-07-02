@@ -1,3 +1,7 @@
+Completed extensions:
+- HTTP Compression
+- Persistent Connections
+
 [![progress-banner](https://backend.codecrafters.io/progress/http-server/dc4d0ebb-042a-45d6-9ddb-692cab237ded)](https://app.codecrafters.io/users/codecrafters-bot?r=2qF)
 
 This is a starting point for Rust solutions to the
